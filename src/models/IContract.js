@@ -279,13 +279,96 @@ class IContract {
    */
   async getEvents(event, filter) {
     if (!this.params.web3EventsProvider) {
-      const events = this.getContract().getPastEvents(event, {
-        fromBlock: 0,
-        toBlock: 'latest',
-        filter
-      });
+      
+      
+// current code      
+//       const events = this.getContract().getPastEvents(event, {
+//         fromBlock: 0,
+//         toBlock: 'latest',
+//         filter
+//       });
+//       return events;
+      
+// New code
+      try {
+        
+        var fromBlock = 0;
+        var toBlock = "latest";
+        var chunkLimit = 5000;
+        console.log('chunkLimit',chunkLimit)
+      
+        const fromBlockNumber = +fromBlock
+        const toBlockNumber = toBlock === "latest" ? +(await this.web3.eth.getBlockNumber()) : +toBlock
+        const totalBlocks = toBlockNumber - fromBlockNumber
+        const chunks = []
+      
+        if (chunkLimit > 0 && totalBlocks > chunkLimit) {
+            const count = Math.ceil(totalBlocks / chunkLimit)
+            let startingBlock = fromBlockNumber
+      
+            for (let index = 0; index < count; index++) {
+                const fromRangeBlock = startingBlock
+                const toRangeBlock =
+                    index === count - 1 ? toBlockNumber : startingBlock + chunkLimit
+                startingBlock = toRangeBlock + 1
+      
+                chunks.push({ fromBlock: fromRangeBlock, toBlock: toRangeBlock })
+            }
+        } else {
+            chunks.push({ fromBlock: fromBlockNumber, toBlock: toBlockNumber })
+        }
 
-      return events;
+        console.log("cunks",chunks)
+      
+        const events = []
+        const errors = []
+        for (const chunk of chunks) {
+            await this.getContract().getPastEvents(
+                event,
+                {
+                    fromBlock: chunk.fromBlock,
+                    toBlock: chunk.toBlock,
+                    filter
+                },
+                async function (error, chunkEvents) {
+                    if (chunkEvents.length > 0) {
+                        events.push(...chunkEvents)
+                    }
+  
+                if (error) errors.push(error)
+            }
+          )
+        }
+  
+        // this throw erros with no response
+        // await Promise.all(chunks.map(async (chunk) => {
+        //       await this.getContract().getPastEvents(
+        //         event,
+        //         {
+        //             fromBlock: chunk.fromBlock,
+        //             toBlock: chunk.toBlock,
+        //             filter
+        //         },
+        //         async function (error, chunkEvents) {
+        //           if(chunkEvents){
+        //             console.log(33333,chunkEvents)
+        //             if (chunkEvents.length > 0) {
+        //                 events.push(...chunkEvents)
+        //             }
+        //           }
+
+        //         if (error) errors.push(error)
+        //     }
+        //   )
+        // }));
+
+        console.log("Evenst finish",events)
+        return events
+
+      } catch (error) {
+        console.log("777777 ",error)
+      }
+    
     }
 
     // getting events via http from web3 events provide
